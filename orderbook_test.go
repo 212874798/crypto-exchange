@@ -50,7 +50,8 @@ func TestPlaceMarketOrder(t *testing.T) {
 	ob.PlaceLimitOrder(100.0, sellOrderB)
 
 	buyOrder := NewOrder(12, true)
-	matches := ob.PlaceMarketOrder(buyOrder)
+	matches, err := ob.PlaceMarketOrder(buyOrder)
+	assert(t, err, nil)
 	assert(t, len(matches), 2)
 	assert(t, matches[0].SizeFilled, 5.0)
 	assert(t, matches[0].Price, 100.0)
@@ -62,13 +63,10 @@ func TestPlaceMarketOrder(t *testing.T) {
 
 	//测试流动性不足的情况
 	buyOrder2 := NewOrder(20, true)
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Expected panic due to insufficient liquidity, but did not panic")
-		}
-
-	}()
-	ob.PlaceMarketOrder(buyOrder2)
+	_, err = ob.PlaceMarketOrder(buyOrder2)
+	if err == nil {
+		t.Errorf("Expected error due to insufficient liquidity, but got nil")
+	}
 }
 
 func TestCancelOrder(t *testing.T) {

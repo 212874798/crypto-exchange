@@ -43,26 +43,45 @@
 
 ---
 
-## Day 2（周二）：撮合算法 Price-Time Priority
+## Day 2（周二）：撮合算法 Price-Time Priority + bug 修复
+
+**⏮ 昨日进度：** Day 1 超额完成！已实现排序订单簿 + HashMap 索引 + PlaceMarketOrder + Fill()。进度超前约 0.5 天。
 
 **文章：** §2.1-2.2（价格时间优先、Pro-Rata）
 
+**🔧 今晚第一件事（5分钟）：修复 DeleteOrder bug**
+
+`orderbook.go` 第 76-87 行，`DeleteOrder` 方法有两个 bug：
+
+Bug 1：swap-delete 后没有 `break`，继续遍历变短的切片有风险
+Bug 2：`totalVolume -= o.Size` 在循环外，即使没找到订单也会减去
+
+修复如下：
+```go
+func (l *Limit) DeleteOrder(o *Order) {
+    for i := 0; i < len(l.Orders); i++ {
+        if l.Orders[i] == o {
+            l.Orders[i] = l.Orders[len(l.Orders)-1]
+            l.Orders = l.Orders[:len(l.Orders)-1]
+            l.totalVolume -= o.Size  // ← 移到 if 里面
+            break                     // ← 加上 break
+        }
+    }
+    sort.Sort(Orders(l.Orders))
+}
+```
+
 **今晚要做：**
-1. 实现 `Orderbook.Match(incoming *Order) []Trade`
-   - 买单：从最低 Ask 开始向上扫
-   - 卖单：从最高 Bid 开始向下扫
-   - 价格交叉时成交，FIFO 吃单
-   - 返回成交列表
-2. 定义 `Trade` 结构体
-3. 处理「部分成交后挂剩余单」逻辑
-4. 处理「价格层清空后移除」逻辑
-5. 价格/数量改为 `int64`（定点整数，price * 100 即精确到分）
-6. TDD：写 5 个测试用例
-   - 市价买单完全匹配
-   - 限价单不交叉直接挂单
-   - 大单吃掉多个价格层
-   - 同价 FIFO 顺序
-   - 部分成交剩余挂单
+1. ✅（已完成）Match 结构体
+2. ✅（已完成）PlaceMarketOrder 市价单撮合
+3. ✅（已完成）价格层清空后 ClearLimit
+4. 🔲 实现 PlaceLimitOrder 的撮合逻辑：限价单到达时**先尝试匹配对手方**，剩余再挂单
+   - 买单价格 ≥ BestAsk → 触发撮合（用已有 Fill 逻辑）
+   - 卖单价格 ≤ BestBid → 触发撮合
+   - 不交叉 → 直接挂单（当前逻辑）
+5. 🔲 LimitOrder 测试：价格交叉时成交 + 部分成交剩余挂单
+6. 🔲 阅读 §2.2 Pro-Rata 按比例分配（了解即可，不做实现）
+7. 价格/数量改为 `int64`（定点整数，price * 100 即精确到分）—— 暂缓，Day 5 重构时统一改
 
 ---
 

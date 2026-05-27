@@ -42,7 +42,7 @@ func (o *Order) String() string {
 type Limit struct {
 	Price       float64
 	Orders      []*Order
-	totalVolume float64
+	TotalVolume float64
 }
 
 type Limits []*Limit
@@ -70,7 +70,7 @@ func NewLimit(price float64) *Limit {
 func (l *Limit) AddOrder(o *Order) {
 	o.Limit = l
 	l.Orders = append(l.Orders, o)
-	l.totalVolume += o.Size
+	l.TotalVolume += o.Size
 }
 
 func (l *Limit) DeleteOrder(o *Order) {
@@ -80,9 +80,10 @@ func (l *Limit) DeleteOrder(o *Order) {
 			//这样可以减少时间复杂度，将需要排序的操作交给撮合引擎
 			l.Orders[i] = l.Orders[len(l.Orders)-1]
 			l.Orders = l.Orders[:len(l.Orders)-1]
+			break
 		}
 	}
-	l.totalVolume -= o.Size
+	l.TotalVolume -= o.Size
 	sort.Sort(Orders(l.Orders))
 }
 
@@ -96,7 +97,7 @@ func (l *Limit) Fill(o *Order) []Match {
 	for _, order := range l.Orders {
 		match := l.fillOrder(order, o)
 		matches = append(matches, match)
-		l.totalVolume -= match.SizeFilled
+		l.TotalVolume -= match.SizeFilled
 
 		if order.Size == 0.0 {
 			orderToDelete = append(orderToDelete, order)
@@ -166,13 +167,13 @@ func NewOrderbook() *Orderbook {
 
 // 市价单，不指定价格，立即以最优价格成交
 // 市场价需要吃掉对手所有价位的订单，直到订单完全成交或者没有更多的订单可以吃掉
-func (ob *Orderbook) PlaceMarketOrder(o *Order) []Match {
+func (ob *Orderbook) PlaceMarketOrder(o *Order) ([]Match, error) {
 	matches := []Match{}
 
 	//如果是买单，吃掉卖单
 	if o.Bid {
 		if o.Size > ob.AskToVolume() {
-			panic("Not enough liquidity to fill the order")
+			return nil, fmt.Errorf("not enough liquidity to fill the order: need %.2f, available %.2f", o.Size, ob.AskToVolume())
 		}
 		for _, limit := range ob.Asks() {
 			limitMatches := limit.Fill(o)
@@ -186,7 +187,7 @@ func (ob *Orderbook) PlaceMarketOrder(o *Order) []Match {
 		//如果是卖单，吃掉买单
 	} else {
 		if o.Size > ob.BidToVolume() {
-			panic("Not enough liquidity to fill the order")
+			return nil, fmt.Errorf("not enough liquidity to fill the order: need %.2f, available %.2f", o.Size, ob.BidToVolume())
 		}
 		for _, limit := range ob.Bids() {
 			limitMatches := limit.Fill(o)
@@ -198,7 +199,7 @@ func (ob *Orderbook) PlaceMarketOrder(o *Order) []Match {
 		}
 	}
 
-	return matches
+	return matches, nil
 }
 
 // 现价单，指定价格匹配时才成交
@@ -252,7 +253,7 @@ func (ob *Orderbook) CancelOrder(o *Order) {
 func (ob *Orderbook) BidToVolume() float64 {
 	total := float64(0)
 	for _, limit := range ob.bids {
-		total += limit.totalVolume
+		total += limit.TotalVolume
 	}
 	return total
 }
@@ -260,7 +261,7 @@ func (ob *Orderbook) BidToVolume() float64 {
 func (ob *Orderbook) AskToVolume() float64 {
 	total := float64(0)
 	for _, limit := range ob.asks {
-		total += limit.totalVolume
+		total += limit.TotalVolume
 	}
 	return total
 }
