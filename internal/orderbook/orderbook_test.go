@@ -1,4 +1,4 @@
-package main
+package orderbook
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 )
 
 func assert(t *testing.T, a, b any) {
+	t.Helper()
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Expected %v, got %v", a, b)
 	}
@@ -42,6 +43,7 @@ func TestPlaceLimitOrder(t *testing.T) {
 	assert(t, ob.Asks()[0].Orders[0], sellOrderA)
 	assert(t, ob.Asks()[0].Orders[1], sellOrderB)
 }
+
 func TestPlaceMarketOrder(t *testing.T) {
 	ob := NewOrderbook()
 	sellOrderA := NewOrder(5, false)
@@ -61,7 +63,7 @@ func TestPlaceMarketOrder(t *testing.T) {
 	assert(t, sellOrderA.Size, 0.0)
 	assert(t, sellOrderB.Size, 3.0)
 
-	//测试流动性不足的情况
+	// 测试流动性不足的情况
 	buyOrder2 := NewOrder(20, true)
 	_, err = ob.PlaceMarketOrder(buyOrder2)
 	if err == nil {
@@ -75,9 +77,21 @@ func TestCancelOrder(t *testing.T) {
 	sellOrderB := NewOrder(10, false)
 	ob.PlaceLimitOrder(100.0, sellOrderA)
 	ob.PlaceLimitOrder(100.0, sellOrderB)
-	ob.CancelOrder(sellOrderA)
+
+	err := ob.CancelOrder(sellOrderA.ID)
+	assert(t, err, nil)
 	assert(t, len(ob.asks), 1)
 	assert(t, ob.Asks()[0].Price, 100.0)
 	assert(t, len(ob.Asks()[0].Orders), 1)
 	assert(t, ob.Asks()[0].Orders[0], sellOrderB)
+
+	// 全局索引应已移除已撤的订单
+	if _, ok := ob.orders[sellOrderA.ID]; ok {
+		t.Errorf("expected order %d removed from index", sellOrderA.ID)
+	}
+
+	// 撤一个不存在的 ID 应当报错
+	if err := ob.CancelOrder(99999); err == nil {
+		t.Errorf("expected error when cancelling unknown order")
+	}
 }

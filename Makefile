@@ -1,5 +1,5 @@
 build:
-	go build -o bin/exchange
+	go build -o bin/exchange ./cmd/server
 
 run: build
 	./bin/exchange
